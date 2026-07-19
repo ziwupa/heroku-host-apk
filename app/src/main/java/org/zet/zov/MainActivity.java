@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String GITHUB_RELEASES_URL = "https://github.com/ziwupa/heroku-host-apk/releases/latest";
     private static final String REMOTE_BUILD_GRADLE_URL = "https://raw.githubusercontent.com/ziwupa/heroku-host-apk/main/app/build.gradle";
     private static final int MAX_LOG_CHARS = 90000;
-    private static final String PATCH_MARKER = ".herokuapk_patch_v33";
+    private static final String PATCH_MARKER = ".herokuapk_patch_v34";
 
     private static final String UBUNTU_BASE = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/";
 
@@ -1573,6 +1573,7 @@ public class MainActivity extends AppCompatActivity {
         return "if [ ! -f " + PATCH_MARKER + " ]; then " +
             hotfixInlineTokenCommand() + " >hotfix_inline.log 2>&1 && " +
             hotfixInfoCommand() + " >hotfix_info.log 2>&1 && " +
+            hotfixPingCommand() + " >hotfix_ping.log 2>&1 && " +
             hotfixMetricsCommand() + " >hotfix_metrics.log 2>&1 && " +
             hotfixRestartCommand() + " >hotfix_restart.log 2>&1 && " +
             hotfixRestoreHelpPingCommand() + " >hotfix_restore_help_ping.log 2>&1 && " +
@@ -1582,6 +1583,20 @@ public class MainActivity extends AppCompatActivity {
 
     private String hotfixRestoreHelpPingCommand() {
         return "(git checkout -- heroku/modules/help.py heroku/modules/test.py 2>/dev/null || true)";
+    }
+
+    private String hotfixPingCommand() {
+        return "cat > hotfix_ping.py <<'PY'\n" +
+            "from pathlib import Path\n" +
+            "p = Path('heroku/modules/heroku_info.py')\n" +
+            "s = p.read_text()\n" +
+            "marker = '    async def _render_info(self, start: float) -> str:'\n" +
+            "method = '    async def _herokuapk_ping(self, start: float) -> float:\\n        try:\\n            from herokutl.tl.functions.updates import GetStateRequest\\n            p0 = time.perf_counter()\\n            await self._client(GetStateRequest())\\n            return round((time.perf_counter() - p0) * 1000, 3)\\n        except Exception:\\n            return round((time.perf_counter_ns() - start) / 10**6, 3)\\n\\n'\n" +
+            "if 'async def _herokuapk_ping' not in s and marker in s:\n    s = s.replace(marker, method + marker)\n" +
+            "s = s.replace('\\\"ping\\\": round((time.perf_counter_ns() - start) / 10**6, 3),', '\\\"ping\\\": await self._herokuapk_ping(start),')\n" +
+            "p.write_text(s)\n" +
+            "PY\n" +
+            ".venv/bin/python hotfix_ping.py";
     }
 
     private String hotfixDeveloperCommand() {
@@ -1629,6 +1644,12 @@ public class MainActivity extends AppCompatActivity {
             "if needle in m and 'HEROKU_CUSTOM_INLINE_BOT' not in m:\n    m = m.replace(needle, insert)\n" +
             "mp.write_text(m)\n" +
             "p.write_text(s)\n" +
+            "cp = Path('heroku/inline/core.py')\n" +
+            "if cp.exists():\n" +
+            "    c = cp.read_text()\n" +
+            "    if 'if not ignore_token_checks and not self._token:' not in c:\n" +
+            "        c = c.replace('if not ignore_token_checks:', 'if not ignore_token_checks and not self._token:')\n" +
+            "    cp.write_text(c)\n" +
             "PY\n" +
             ".venv/bin/python hotfix_inline.py";
     }
@@ -1641,7 +1662,7 @@ public class MainActivity extends AppCompatActivity {
             "s = p.read_text()\n" +
             "s = s.replace('platform = utils.get_named_platform()', 'platform = \\\"herokuapk\\\"')\n" +
             "s = s.replace('platform_emoji = utils.get_named_platform_emoji()', 'platform_emoji = \\\"📱\\\"')\n" +
-            "marker = '        data = {\\\\n'\n" +
+            "marker = '        data = {\\n'\n" +
             "helpers = '''        def _herokuapk_host_info():\\n            try:\\n                import json\\n                return json.loads(Path(\"/support/common/host_info.json\").read_text())\\n            except Exception:\\n                return {}\\n\\n        def _herokuapk_host_value(key, default):\\n            return _herokuapk_host_info().get(key, default)\\n\\n        def _herokuapk_safe_cpu_usage():\\n            try:\\n                return utils.get_cpu_usage()\\n            except Exception:\\n                return \"N/A\"\\n\\n        def _herokuapk_safe_ram_usage():\\n            try:\\n                return f\"{utils.get_ram_usage()} MB\"\\n            except Exception:\\n                return \"0 MB\"\\n\\n        def _herokuapk_safe_cpu():\\n            try:\\n                return _herokuapk_host_value(\"cpu\", \"N/A\")\\n            except Exception:\\n                return \"N/A\"\\n\\n'''\n" +
             "if 'def _herokuapk_host_value' not in s and marker in s:\n    s = s.replace(marker, helpers + marker)\n" +
             "s = s.replace('\\\"cpu_usage\\\": utils.get_cpu_usage(),', '\\\"cpu_usage\\\": _herokuapk_host_value(\"cpu_usage\", _herokuapk_safe_cpu_usage()),')\n" +
