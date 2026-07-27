@@ -8,7 +8,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="Heroku Host"
+        android:label="Ratko Host"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher_round"
         android:supportsRtl="true"

@@ -1,6 +1,6 @@
-# Heroku Host APK
+# Ratko Host APK
 
-Android mini-UserLAnd style installer for Heroku Userbot.
+Android mini-UserLAnd style installer for Ratko Userbot.
 
 ## Download
 
@@ -20,7 +20,7 @@ Features:
 
 - Downloads and extracts Ubuntu Base rootfs.
 - Uses bundled UserLAnd support assets (`proot`, `busybox`, loaders).
-- Button flow: `INSTALL LINUX`, `INSTALL HEROKU`, `START BOT`.
+- Button flow: `INSTALL LINUX`, `INSTALL RATKO`, `START BOT`.
 - Interactive terminal input through the bottom input field.
 - Selectable logs and `COPY LOGS` button.
 - Wake lock and battery optimization prompt for long installs.

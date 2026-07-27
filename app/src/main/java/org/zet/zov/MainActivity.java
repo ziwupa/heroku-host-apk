@@ -60,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private ScrollView logScroll;
     private EditText inputField;
     private Button followOutputBtn;
+    private Button ratkoActionBtn;
     private Spinner sessionSpinner;
     private Spinner terminalSpinner;
     private View actionPanel;
@@ -92,12 +93,14 @@ public class MainActivity extends AppCompatActivity {
     private String lastKeepAliveSignature = "";
     private String lastUpdateCheckLabel = "never";
     private boolean updateRequired = false;
-    private static final String SUPPORT_URL = "https://t.me/herokuapk";
-    private static final String GITHUB_REPO_URL = "https://github.com/ziwupa/heroku-host-apk";
+    private static final String SUPPORT_URL = "https://t.me/ratkoapk";
+    private static final String GITHUB_REPO_URL = "https://github.com/unsidogandon/ratko";
     private static final String GITHUB_RELEASES_URL = "https://github.com/ziwupa/heroku-host-apk/releases/latest";
     private static final String REMOTE_BUILD_GRADLE_URL = "https://raw.githubusercontent.com/ziwupa/heroku-host-apk/main/app/build.gradle";
+    private static final String USERBOT_REPO_URL = "https://github.com/unsidogandon/ratko.git";
+    private static final String RATKO_MIGRATION_MARKER = ".ratko_migration_complete";
     private static final int MAX_LOG_CHARS = 90000;
-    private static final String PATCH_MARKER = ".herokuapk_patch_v34";
+    private static final String PATCH_MARKER = ".ratkoapk_patch_v38";
 
     private static final String UBUNTU_BASE = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/";
 
@@ -122,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
         Button menuToggleBtn = findViewById(R.id.menuToggleBtn);
         Button menuCloseBtn = findViewById(R.id.menuCloseBtn);
         Button installLinuxBtn = findViewById(R.id.installLinuxBtn);
-        Button installHerokuBtn = findViewById(R.id.installHerokuBtn);
+        ratkoActionBtn = findViewById(R.id.installHerokuBtn);
         Button startBotBtn = findViewById(R.id.startBotBtn);
         Button terminalBtn = findViewById(R.id.terminalBtn);
         Button stopBtn = findViewById(R.id.stopBtn);
@@ -159,7 +162,13 @@ public class MainActivity extends AppCompatActivity {
         menuToggleBtn.setOnClickListener(v -> toggleMenu());
         menuCloseBtn.setOnClickListener(v -> closeMenu());
         installLinuxBtn.setOnClickListener(v -> runTask(this::installLinux));
-        installHerokuBtn.setOnClickListener(v -> runTask(this::installHeroku));
+        ratkoActionBtn.setOnClickListener(v -> {
+            if (isRatkoMigrationComplete()) {
+                runTask(this::installHeroku);
+            } else {
+                updateToRatko(ratkoActionBtn);
+            }
+        });
         startBotBtn.setOnClickListener(v -> startInteractiveBot());
         terminalBtn.setOnClickListener(v -> startTerminalSession());
         stopBtn.setOnClickListener(v -> stopCurrentProcess());
@@ -188,11 +197,47 @@ public class MainActivity extends AppCompatActivity {
         });
         updateVersionInfoText();
 
-        log("[INFO] Heroku Host ready");
+        log("[INFO] Ratko Host ready");
         log("[INFO] Account profile: " + selectedSessionName());
-        log("[INFO] Step 1: LINUX, then HEROKU, then START");
+        log("[INFO] Step 1: LINUX, then RATKO, then START");
         checkForUpdatesAsync();
         refreshProcessUiState();
+        updateRatkoMigrationButton(ratkoActionBtn);
+    }
+
+    private boolean isRatkoMigrationComplete() {
+        return new File(rootfsDir, "root/" + herokuDirName() + "/" + RATKO_MIGRATION_MARKER).exists();
+    }
+
+    private void updateRatkoMigrationButton(Button button) {
+        if (button == null) return;
+        button.setVisibility(View.VISIBLE);
+        button.setText(isRatkoMigrationComplete() ? "2. Ratko" : "2. UPDATE TO RATKO");
+    }
+
+    private void updateToRatko(Button button) {
+        closeMenu();
+        migrateLegacyInstall();
+        String path = herokuPath();
+        File dir = herokuRootfsDir();
+        if (!dir.exists()) {
+            log("[ERROR] Install Linux and the existing userbot first.");
+            return;
+        }
+        startProcess("export HOME=/root PATH=" + path + "/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin TERM=xterm-256color PYTHONUNBUFFERED=1 && cd " + path + " && " +
+            resetRatkoGitCommand() + " && " +
+            ".venv/bin/python -m pip install -r requirements.txt && " +
+            "touch " + RATKO_MIGRATION_MARKER,
+            false, false, false, "UPDATE TO RATKO", false, () -> updateRatkoMigrationButton(button));
+    }
+
+    private String resetRatkoGitCommand() {
+        // Move only broken Git metadata aside. Sessions, databases, venv and modules stay intact.
+        return "if [ -d .git ]; then mv .git .git.corrupt.$(date +%s) || exit 1; fi && git init && " +
+            "git remote add origin " + USERBOT_REPO_URL + " && " +
+            "git fetch --depth=1 origin main:refs/remotes/origin/main && " +
+            "git reset --hard origin/main && git checkout -B main origin/main && " +
+            "git branch --set-upstream-to=origin/main main";
     }
 
     @Override
@@ -266,7 +311,7 @@ public class MainActivity extends AppCompatActivity {
             if (wakeLock != null && wakeLock.isHeld()) return;
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm == null) return;
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HerokuHost:InstallWakeLock");
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RatkoHost:InstallWakeLock");
             wakeLock.setReferenceCounted(false);
             wakeLock.acquire(60L * 60L * 1000L);
         } catch (Exception e) {
@@ -289,7 +334,7 @@ public class MainActivity extends AppCompatActivity {
         if (statusText == null) return;
         runOnUiThread(() -> {
             String linux = isRootfsValid() ? "Linux OK" : "Linux missing";
-            String heroku = isHerokuInstalledForSelectedAccount() ? "Heroku OK" : "Heroku missing";
+            String heroku = isHerokuInstalledForSelectedAccount() ? "Ratko OK" : "Ratko missing";
             String bot = currentProcess != null && currentProcess.isAlive() ? "running" : (botSupervisorActive ? "watching" : "stopped");
             String terminal = selectedTerminalName();
             String terminalState = isTerminalAlive(terminal) ? "on" : "off";
@@ -313,6 +358,7 @@ public class MainActivity extends AppCompatActivity {
         updateHostModeText();
         syncForcedUpdateUi();
         syncKeepAliveState();
+        updateRatkoMigrationButton(ratkoActionBtn);
     }
 
     private void syncForcedUpdateUi() {
@@ -399,7 +445,7 @@ public class MainActivity extends AppCompatActivity {
                 showForcedUpdate("", false);
                 log("[UPDATE] Check failed: " + e.getMessage());
             }
-        }, "HerokuHostVersionCheck").start();
+        }, "RatkoHostVersionCheck").start();
     }
 
     private String fetchText(String url) throws Exception {
@@ -480,7 +526,7 @@ public class MainActivity extends AppCompatActivity {
             acquireWakeLock();
             acquireWifiLock();
             Intent intent = new Intent(this, HostKeepAliveService.class)
-                .putExtra(HostKeepAliveService.EXTRA_TITLE, "Heroku Host keepalive")
+                .putExtra(HostKeepAliveService.EXTRA_TITLE, "Ratko Host keepalive")
                 .putExtra(HostKeepAliveService.EXTRA_TEXT, summary);
             ContextCompat.startForegroundService(this, intent);
         } else {
@@ -503,7 +549,7 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 } catch (Exception ignored) {}
             }
-        }, "HerokuHostKeepAliveWatchdog");
+        }, "RatkoHostKeepAliveWatchdog");
         keepAliveWatchdogThread.setDaemon(true);
         keepAliveWatchdogThread.start();
     }
@@ -513,7 +559,7 @@ public class MainActivity extends AppCompatActivity {
             if (wifiLock != null && wifiLock.isHeld()) return;
             WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             if (wifiManager == null) return;
-            wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "HerokuHost:WifiLock");
+            wifiLock = wifiManager.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "RatkoHost:WifiLock");
             wifiLock.setReferenceCounted(false);
             wifiLock.acquire();
         } catch (Exception e) {
@@ -752,6 +798,11 @@ public class MainActivity extends AppCompatActivity {
 
     private String herokuDirName() {
         String profile = selectedSessionName();
+        return profile.equals("main") ? "Ratko" : "Ratko-" + profile;
+    }
+
+    private String legacyHerokuDirName() {
+        String profile = selectedSessionName();
         return profile.equals("main") ? "Heroku" : "Heroku-" + profile;
     }
 
@@ -763,7 +814,21 @@ public class MainActivity extends AppCompatActivity {
         return new File(rootfsDir, "root/" + herokuDirName());
     }
 
+    private void migrateLegacyInstall() {
+        File current = herokuRootfsDir();
+        File legacy = new File(rootfsDir, "root/" + legacyHerokuDirName());
+        if (current.exists() || !legacy.exists()) return;
+        File parent = current.getParentFile();
+        if (parent != null) parent.mkdirs();
+        if (legacy.renameTo(current)) {
+            log("[MIGRATE] Preserved existing userbot data: " + legacy.getName() + " -> " + current.getName());
+        } else {
+            log("[WARN] Could not rename legacy userbot directory. Existing Heroku data was left untouched.");
+        }
+    }
+
     private boolean isHerokuInstalledForSelectedAccount() {
+        migrateLegacyInstall();
         File dir = herokuRootfsDir();
         return new File(dir, "heroku").exists()
             && fileExistsOrSymlink(new File(dir, ".venv/bin/python"))
@@ -816,7 +881,7 @@ public class MainActivity extends AppCompatActivity {
             saveSelectedSessionName(profile);
             waitingForSessionName = false;
             log("[OK] Account profile selected: " + profile);
-            log("[INFO] For another Telegram account press HEROKU, then START and login with its phone.");
+            log("[INFO] For another Telegram account press RATKO, then START and login with its phone.");
             refreshProcessUiState();
         } catch (Exception e) {
             log("[ERROR] Failed to save session: " + e.getMessage());
@@ -881,7 +946,7 @@ public class MainActivity extends AppCompatActivity {
         String cpuPercent = cpu >= 0 ? String.format(java.util.Locale.US, "%.1f%%", cpu) : "N/A";
         int cores = Runtime.getRuntime().availableProcessors();
         String json = "{"
-            + "\"host\":\"herokuapk\"," 
+            + "\"host\":\"ratkoapk\"," 
             + "\"cpu_usage\":\"" + cpuPercent + "\"," 
             + "\"ram_usage\":\"" + usedMb + " MB\"," 
             + "\"cpu\":\"" + cores + " (" + cores + ") core(-s); " + cpuPercent + " total\"," 
@@ -1021,7 +1086,7 @@ public class MainActivity extends AppCompatActivity {
             if (!testProotRuntime()) throw new IllegalStateException("proot runtime test failed after reinstall");
         }
 
-        log("[DONE] Linux installed. Now press INSTALL HEROKU");
+            log("[DONE] Linux installed. Now press INSTALL RATKO");
     }
 
     private void installSupportAssets() throws Exception {
@@ -1370,16 +1435,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void installHeroku() {
+        migrateLegacyInstall();
         String dirName = herokuDirName();
         String path = herokuPath();
         startProcess("export HOME=/root PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin TERM=xterm-256color DEBIAN_FRONTEND=noninteractive && " +
             "dpkg --remove --force-remove-reinstreq --force-depends dbus libpam-systemd systemd-resolved networkd-dispatcher dbus-user-session dconf-service dconf-gsettings-backend libgtk-3-common gsettings-desktop-schemas libgtk-3-bin libgtk-3-0t64 at-spi2-core libdecor-0-plugin-1-gtk 2>/dev/null || true && " +
             "apt update && apt install -y --no-install-recommends ca-certificates coreutils git python3 python3-pip python3-venv build-essential libcairo2 libmagic1 openssl && " +
-            "cd /root && if [ ! -d " + dirName + " ]; then git clone https://github.com/coddrago/Heroku " + dirName + "; fi && " +
-            "cd " + path + " && python3 -m venv .venv && " +
+            "cd /root && if [ ! -d " + dirName + " ]; then git clone " + USERBOT_REPO_URL + " " + dirName + "; fi && " +
+            "cd " + path + " && " + resetRatkoGitCommand() + " && " +
+            "python3 -m venv .venv && " +
             ".venv/bin/python -m pip install --upgrade pip wheel setuptools && " +
             ".venv/bin/python -m pip install -r requirements.txt && " +
-            ".venv/bin/python -c \"import hashlib; open('.requirements_hash','w').write(hashlib.sha256(open('requirements.txt','rb').read()).hexdigest())\"", false, true, false, "INSTALL HEROKU");
+            ".venv/bin/python -c \"import hashlib; open('.requirements_hash','w').write(hashlib.sha256(open('requirements.txt','rb').read()).hexdigest())\" && " +
+            "touch " + RATKO_MIGRATION_MARKER,
+            false, true, false, "INSTALL RATKO", false, () -> updateRatkoMigrationButton(ratkoActionBtn));
     }
 
     private void runDiagnostics() {
@@ -1387,11 +1456,11 @@ public class MainActivity extends AppCompatActivity {
         runTask(() -> {
             refreshProcessUiState();
             log("[DIAG] Account: " + selectedSessionName());
-            log("[DIAG] Heroku path: " + herokuPath());
+            log("[DIAG] Ratko path: " + herokuPath());
             log("[DIAG] Android ABI: " + Build.SUPPORTED_ABIS[0]);
             log("[DIAG] Linux rootfs: " + (isRootfsValid() ? "OK" : "missing/broken"));
             log("[DIAG] Support assets: " + (new File(supportDir, "proot").exists() ? "OK" : "missing"));
-            log("[DIAG] Heroku repo: " + (new File(herokuRootfsDir(), "heroku").exists() ? "OK" : "missing"));
+            log("[DIAG] Ratko repo: " + (new File(herokuRootfsDir(), "heroku").exists() ? "OK" : "missing"));
             log("[DIAG] venv python: " + (fileExistsOrSymlink(new File(herokuRootfsDir(), ".venv/bin/python")) ? "OK" : "missing"));
             log("[DIAG] inline bot: " + (isInlineBotUsernameValid(getInlineBotUsername()) ? "@" + getInlineBotUsername() : "not set"));
             log("[DIAG] bot process: " + ((currentProcess != null && currentProcess.isAlive()) ? "running" : "stopped"));
@@ -1420,16 +1489,17 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateHeroku() {
         closeMenu();
+        migrateLegacyInstall();
         String path = herokuPath();
         if (!isHerokuInstalledForSelectedAccount()) {
             log("[ERROR] Heroku is not installed for account profile: " + selectedSessionName());
             return;
         }
         startProcess("export HOME=/root PATH=" + path + "/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin TERM=xterm-256color PYTHONUNBUFFERED=1 && cd " + path + " && " +
-            "git pull --ff-only || git pull && " +
+            resetRatkoGitCommand() + " && " +
             ".venv/bin/python -m pip install -r requirements.txt && " +
             "rm -f " + PATCH_MARKER + " && " +
-            herokuApkPatchCommand(), false, false, false, "UPDATE HEROKU");
+            herokuApkPatchCommand(), false, false, false, "UPDATE RATKO");
     }
 
     private void reapplyPatches() {
@@ -1453,7 +1523,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (!isHerokuInstalledForSelectedAccount()) {
             log("[ERROR] Heroku is not installed for account profile: " + selectedSessionName());
-            log("[INFO] Press INSTALL HEROKU first for this account profile.");
+            log("[INFO] Press INSTALL RATKO first for this account profile.");
             return;
         }
 
@@ -1574,11 +1644,21 @@ public class MainActivity extends AppCompatActivity {
             hotfixInlineTokenCommand() + " >hotfix_inline.log 2>&1 && " +
             hotfixInfoCommand() + " >hotfix_info.log 2>&1 && " +
             hotfixPingCommand() + " >hotfix_ping.log 2>&1 && " +
-            hotfixMetricsCommand() + " >hotfix_metrics.log 2>&1 && " +
             hotfixRestartCommand() + " >hotfix_restart.log 2>&1 && " +
             hotfixRestoreHelpPingCommand() + " >hotfix_restore_help_ping.log 2>&1 && " +
             hotfixDeveloperCommand() + " >hotfix_developer.log 2>&1 && " +
+            hotfixRatkoBrandCommand() + " >hotfix_ratko_brand.log 2>&1 && " +
             "touch " + PATCH_MARKER + "; fi";
+    }
+
+    private String hotfixRatkoBrandCommand() {
+        return "cat > hotfix_ratko_brand.py <<'PY'\n" +
+            "from pathlib import Path\n" +
+            "p = Path('heroku/modules/heroku_info.py')\n" +
+            "s = p.read_text().replace('herokuapk', 'ratkoapk')\n" +
+            "p.write_text(s)\n" +
+            "PY\n" +
+            ".venv/bin/python hotfix_ratko_brand.py";
     }
 
     private String hotfixRestoreHelpPingCommand() {
@@ -1792,6 +1872,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startProcess(String command, boolean interactive, boolean openSupportOnSuccess, boolean autoRestart, String label, boolean cleanupBeforeFirstRun) {
+        startProcess(command, interactive, openSupportOnSuccess, autoRestart, label, cleanupBeforeFirstRun, null);
+    }
+
+    private void startProcess(String command, boolean interactive, boolean openSupportOnSuccess, boolean autoRestart, String label, boolean cleanupBeforeFirstRun, Runnable onSuccess) {
         runTask(() -> {
             acquireWakeLock();
             startHostMetricsWriter();
@@ -1826,8 +1910,9 @@ public class MainActivity extends AppCompatActivity {
                 refreshProcessUiState();
                 log("[EXIT] code " + code);
                 if (!interactive) log("[DONE] Command finished");
+                if (code == 0 && onSuccess != null) runOnUiThread(onSuccess);
                 if (code == 0 && openSupportOnSuccess) {
-                    log("[INFO] Opening support chat @herokuapk");
+                    log("[INFO] Opening support chat @ratkoapk");
                     runOnUiThread(this::openSupportChat);
                 }
                 if (!(interactive && autoRestart && botAutoRestartEnabled && !manualStop)) break;
@@ -1954,7 +2039,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void copyLogs() {
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        clipboard.setPrimaryClip(ClipData.newPlainText("Heroku Host logs", logConsole.getText().toString()));
+        clipboard.setPrimaryClip(ClipData.newPlainText("Ratko Host logs", logConsole.getText().toString()));
         log("[INFO] Logs copied to clipboard");
     }
 
