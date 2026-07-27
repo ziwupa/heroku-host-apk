@@ -1645,13 +1645,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String herokuApkPatchCommand() {
-        return "if [ ! -f " + PATCH_MARKER + " ]; then " +
+        return "git checkout -- heroku/langpacks/*.yml 2>/dev/null || true; " +
+            "if [ ! -f " + PATCH_MARKER + " ]; then " +
             hotfixInlineTokenCommand() + " >hotfix_inline.log 2>&1 && " +
             hotfixInfoCommand() + " >hotfix_info.log 2>&1 && " +
             hotfixPingCommand() + " >hotfix_ping.log 2>&1 && " +
             hotfixRestartCommand() + " >hotfix_restart.log 2>&1 && " +
             hotfixRestoreHelpPingCommand() + " >hotfix_restore_help_ping.log 2>&1 && " +
-            hotfixDeveloperCommand() + " >hotfix_developer.log 2>&1 && " +
+            "echo developer patch skipped 2>&1 && " +
             hotfixRatkoBrandCommand() + " >hotfix_ratko_brand.log 2>&1 && " +
             "touch " + PATCH_MARKER + "; fi";
     }
