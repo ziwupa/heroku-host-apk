@@ -163,10 +163,10 @@ public class MainActivity extends AppCompatActivity {
         menuCloseBtn.setOnClickListener(v -> closeMenu());
         installLinuxBtn.setOnClickListener(v -> runTask(this::installLinux));
         ratkoActionBtn.setOnClickListener(v -> {
-            if (isRatkoMigrationComplete()) {
-                runTask(this::installHeroku);
-            } else {
+            if (needsRatkoMigration()) {
                 updateToRatko(ratkoActionBtn);
+            } else {
+                runTask(this::installHeroku);
             }
         });
         startBotBtn.setOnClickListener(v -> startInteractiveBot());
@@ -209,10 +209,15 @@ public class MainActivity extends AppCompatActivity {
         return new File(rootfsDir, "root/" + herokuDirName() + "/" + RATKO_MIGRATION_MARKER).exists();
     }
 
+    private boolean needsRatkoMigration() {
+        File dir = herokuRootfsDir();
+        return dir.exists() && !isRatkoMigrationComplete();
+    }
+
     private void updateRatkoMigrationButton(Button button) {
         if (button == null) return;
         button.setVisibility(View.VISIBLE);
-        button.setText(isRatkoMigrationComplete() ? "2. Ratko" : "2. UPDATE TO RATKO");
+        button.setText(needsRatkoMigration() ? "2. UPDATE TO RATKO" : "2. Ratko");
     }
 
     private void updateToRatko(Button button) {
