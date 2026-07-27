@@ -7,13 +7,13 @@ Android mini-UserLAnd style installer for Ratko Userbot.
 APK is in the repository root:
 
 ```text
-HerokuHost-by-ziwupa-debug.apk
+RatkoHost-by-ziwupa-debug.apk
 ```
 
 Latest release download:
 
 ```text
-https://github.com/ziwupa/heroku-host-apk/releases/latest
+https://github.com/ziwupa/ratko-apk/releases/latest
 ```
 
 Features:
@@ -42,5 +42,5 @@ app/build/outputs/apk/debug/app-debug.apk
 Copy APK to repo root after building:
 
 ```bash
-cp app/build/outputs/apk/debug/app-debug.apk HerokuHost-by-ziwupa-debug.apk
+cp app/build/outputs/apk/debug/app-debug.apk RatkoHost-by-ziwupa-debug.apk
 ```
