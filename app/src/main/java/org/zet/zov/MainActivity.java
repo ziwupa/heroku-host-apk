@@ -95,8 +95,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean updateRequired = false;
     private static final String SUPPORT_URL = "https://t.me/ratkoapk";
     private static final String GITHUB_REPO_URL = "https://github.com/unsidogandon/ratko";
-    private static final String GITHUB_RELEASES_URL = "https://github.com/ziwupa/heroku-host-apk/releases/latest";
-    private static final String REMOTE_BUILD_GRADLE_URL = "https://raw.githubusercontent.com/ziwupa/heroku-host-apk/main/app/build.gradle";
+    private static final String GITHUB_RELEASES_URL = "https://github.com/ziwupa/ratko-apk/releases/latest";
+    private static final String REMOTE_BUILD_GRADLE_URL = "https://raw.githubusercontent.com/ziwupa/ratko-apk/main/app/build.gradle";
     private static final String USERBOT_REPO_URL = "https://github.com/unsidogandon/ratko.git";
     private static final String RATKO_MIGRATION_MARKER = ".ratko_migration_complete";
     private static final int MAX_LOG_CHARS = 90000;
